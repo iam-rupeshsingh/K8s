@@ -1,0 +1,174 @@
+Multi-container application
+
+Each container in a separate Pod
+👉 This means Kubernetes way, not Docker Compose.
+
+🔑 First, one golden rule (very important)
+
+1 Pod = 1 main container (recommended)
+So yes 👇
+Each container → its own Pod → its own Deployment
+
+🧱 What containers you have (example)
+
+Let’s take your case:
+
+Node.js app
+
+MongoDB
+
+So you will create:
+
+2 Deployments
+
+2 Services
+
+📦 Architecture (visual)
+[ Node.js Pod ]  --->  [ MongoDB Pod ]
+       |                     |
+   Node Service          Mongo Service
+
+
+They talk using Service name, NOT localhost.
+
+1️⃣ MongoDB Deployment (separate Pod)
+mongo-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:6
+          ports:
+            - containerPort: 27017
+
+2️⃣ MongoDB Service (VERY IMPORTANT)
+mongo-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+spec:
+  selector:
+    app: mongo
+  ports:
+    - port: 27017
+      targetPort: 27017
+
+
+👉 Service name = mongo
+Remember this.
+
+3️⃣ Update server.js (this is the “something” you asked)
+mongoose.connect("mongodb://mongo:27017/mydb");
+
+
+✅ mongo = MongoDB Service name
+
+NOT:
+
+pod name ❌
+
+container name ❌
+
+localhost ❌
+
+4️⃣ Node.js Deployment (separate Pod)
+node-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: node
+  template:
+    metadata:
+      labels:
+        app: node
+    spec:
+      containers:
+        - name: node
+          image: your-node-image
+          ports:
+            - containerPort: 3000
+
+5️⃣ Node.js Service
+node-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: node
+spec:
+  type: NodePort
+  selector:
+    app: node
+  ports:
+    - port: 3000
+      targetPort: 3000
+      nodePort: 30007
+
+6️⃣ Apply everything
+kubectl apply -f mongo-deployment.yaml
+kubectl apply -f mongo-service.yaml
+
+kubectl apply -f node-deployment.yaml
+kubectl apply -f node-service.yaml
+
+🧠 How they talk (this answers your confusion about networking)
+
+Kubernetes automatically provides:
+
+pod-to-pod networking
+
+DNS resolution
+
+So inside Node Pod:
+
+mongo  → resolves to Mongo Service → routes to Mongo Pod
+
+
+You didn’t “see” networking because K8s does it for you.
+
+❌ Common mistakes (don’t do this)
+Mistake	Why wrong
+localhost	Each pod has its own localhost
+Pod name	Pod IP changes
+Container name	Not used for networking
+✅ Final mental model (lock this)
+
+Docker Compose → service name
+
+Kubernetes → service name
+
+
+----------------------------------------------------------------
+
+Very short 👍
+
+Node.js (app) → ✅ 2 replicas (or more) → recommended
+
+MongoDB → ❌ 1 replica only (unless using Mongo replica set)
+
+So:
+
+App Deployment: replicas = 2
+
+Mongo Deployment: replicas = 1
+
+That’s the correct setup. ✅
+
+server.js → always uses service name
