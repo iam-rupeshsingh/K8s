@@ -1,0 +1,198 @@
+Hands-On: Host-Based Routing in Minikube Using Ingress
+🔹 Step 1: Start Minikube & Enable Ingress
+Bash
+Copy code
+minikube start
+minikube addons enable ingress
+Verify ingress controller:
+Bash
+Copy code
+kubectl get pods -n ingress-nginx
+Make sure it is in Running state.
+🔹 Step 2: Create Application 1 (Deployment + Service)
+Create a file:
+Copy code
+
+app1.yaml
+Paste:
+Yaml
+Copy code
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app1-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app1
+  template:
+    metadata:
+      labels:
+        app: app1
+    spec:
+      containers:
+      - name: nginx-container
+        image: nginx
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app1-service
+spec:
+  type: ClusterIP
+  selector:
+    app: app1
+  ports:
+  - port: 80
+    targetPort: 80
+Apply:
+Bash
+Copy code
+kubectl apply -f app1.yaml
+Verify:
+Bash
+Copy code
+kubectl get pods
+kubectl get svc
+🔹 Step 3: Create Application 2 (Deployment + Service)
+Create another file:
+Copy code
+
+app2.yaml
+Paste:
+Yaml
+Copy code
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app2-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app2
+  template:
+    metadata:
+      labels:
+        app: app2
+    spec:
+      containers:
+      - name: httpd-container
+        image: httpd
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app2-service
+spec:
+  type: ClusterIP
+  selector:
+    app: app2
+  ports:
+  - port: 80
+    targetPort: 80
+Apply:
+Bash
+Copy code
+kubectl apply -f app2.yaml
+Verify:
+Bash
+Copy code
+kubectl get pods
+kubectl get svc
+🔹 Step 4: Create Ingress for Host-Based Routing
+Create a file:
+Copy code
+
+ingress.yaml
+Paste:
+Yaml
+Copy code
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: host-based-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: app1.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: app1-service
+            port:
+              number: 80
+
+  - host: app2.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: app2-service
+            port:
+              number: 80
+Apply:
+Bash
+Copy code
+kubectl apply -f ingress.yaml
+Verify:
+Bash
+Copy code
+kubectl get ingress
+🔹 Step 5: Configure Local DNS (Hosts File)
+Get Minikube IP:
+Bash
+Copy code
+minikube ip
+Example:
+Copy code
+
+192.168.49.2
+Now edit hosts file:
+Windows:
+Copy code
+
+C:\Windows\System32\drivers\etc\hosts
+Linux/Mac:
+Copy code
+
+/etc/hosts
+Add:
+Copy code
+
+192.168.49.2 app1.local
+192.168.49.2 app2.local
+Save file.
+🔹 Step 6: Test in Browser
+Open:
+Copy code
+
+http://app1.local
+You should see NGINX page
+Open:
+Copy code
+
+http://app2.local
+You should see Apache page
+🎯 Final Architecture
+Copy code
+
+Browser
+   ↓
+Minikube IP
+   ↓
+Ingress Controller
+   ↓
+ClusterIP Service
+   ↓
+Pod
